@@ -215,9 +215,9 @@ export default function VideoRoom({
     onLeaveCall();
   };
 
-  // URL nhúng Jitsi WebRTC Cloud API sạch sẽ, tự động tắt prejoin, đặt tên người dùng
+  // URL nhúng WebRTC Cloud API (sử dụng server fairmeeting.net không yêu cầu tài khoản Host/Moderator)
   const cleanRoomCode = (roomName || 'nhom8-room-btxdpmw').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const webRtcUrl = `https://meet.jit.si/${cleanRoomCode}#userInfo.displayName=${encodeURIComponent(JSON.stringify(user.displayName || 'Nhóm 8'))}&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
+  const webRtcUrl = `https://fairmeeting.net/${cleanRoomCode}#userInfo.displayName=${encodeURIComponent(JSON.stringify(user.displayName || 'Nhóm 8'))}&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
 
   return (
     <div className="glass-card video-room-container">

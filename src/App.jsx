@@ -95,22 +95,14 @@ export default function App() {
 
         {/* Nội dung chính: Sảnh chờ hoặc Phòng gọi Video */}
         {isInCall ? (
-          callEngine === 'instant' ? (
-            <NativeVideoRoom
-              user={user}
-              roomName={roomName}
-              onLeaveCall={handleLeaveCall}
-            />
-          ) : (
-            <VideoRoom
-              user={user}
-              roomUrl={roomUrl}
-              roomName={roomName}
-              callEngine={callEngine}
-              onSwitchEngine={handleSwitchEngine}
-              onLeaveCall={handleLeaveCall}
-            />
-          )
+          <VideoRoom
+            user={user}
+            roomUrl={roomUrl}
+            roomName={roomName}
+            callEngine={callEngine}
+            onSwitchEngine={handleSwitchEngine}
+            onLeaveCall={handleLeaveCall}
+          />
         ) : (
           <RoomLobby
             user={user}
