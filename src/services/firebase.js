@@ -8,14 +8,15 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 
-// Cấu hình Firebase mặc định (người dùng có thể thay đổi trong giao diện hoặc qua .env)
+// Cấu hình Firebase chính thức của Nhóm 8
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForDemoMode1234567890",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "nhom8-video-call.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "nhom8-video-call",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "nhom8-video-call.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef1234567890"
+  apiKey: "AIzaSyB5a8yj8u4q37qzqkW8HLhakf9RFTO5dTo",
+  authDomain: "nhom8-videocall.firebaseapp.com",
+  projectId: "nhom8-videocall",
+  storageBucket: "nhom8-videocall.firebasestorage.app",
+  messagingSenderId: "296936201602",
+  appId: "1:296936201602:web:cc015026f531987554839b",
+  measurementId: "G-00X74R56CP"
 };
 
 // Lấy config từ localStorage nếu người dùng đã lưu
