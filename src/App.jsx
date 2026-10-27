@@ -12,6 +12,8 @@ import { getSavedDailyRoom, saveDailyRoom } from './services/daily';
 export default function App() {
   const [user, setUser] = useState(null);
   const [roomUrl, setRoomUrl] = useState(getSavedDailyRoom());
+  const [roomName, setRoomName] = useState(() => localStorage.getItem('nhom8_room_name') || 'nhom8-room-btxdpmw');
+  const [callEngine, setCallEngine] = useState(() => localStorage.getItem('nhom8_call_engine') || 'instant');
   const [isInCall, setIsInCall] = useState(false);
 
   // Modals
@@ -57,11 +59,18 @@ export default function App() {
       return;
     }
     saveDailyRoom(roomUrl);
+    localStorage.setItem('nhom8_room_name', roomName);
+    localStorage.setItem('nhom8_call_engine', callEngine);
     setIsInCall(true);
   };
 
   const handleLeaveCall = () => {
     setIsInCall(false);
+  };
+
+  const handleSwitchEngine = (newEngine) => {
+    setCallEngine(newEngine);
+    localStorage.setItem('nhom8_call_engine', newEngine);
   };
 
   return (
@@ -88,6 +97,9 @@ export default function App() {
           <VideoRoom
             user={user}
             roomUrl={roomUrl}
+            roomName={roomName}
+            callEngine={callEngine}
+            onSwitchEngine={handleSwitchEngine}
             onLeaveCall={handleLeaveCall}
           />
         ) : (
@@ -96,6 +108,10 @@ export default function App() {
             onOpenLogin={() => setIsLoginModalOpen(true)}
             roomUrl={roomUrl}
             setRoomUrl={setRoomUrl}
+            roomName={roomName}
+            setRoomName={setRoomName}
+            callEngine={callEngine}
+            setCallEngine={setCallEngine}
             onJoinCall={handleJoinCall}
           />
         )}

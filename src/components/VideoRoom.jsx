@@ -14,10 +14,17 @@ import {
   ChevronLeft,
   ShieldCheck,
   AlertCircle,
-  RefreshCw
+  Sparkles
 } from 'lucide-react';
 
-export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
+export default function VideoRoom({ 
+  user, 
+  roomUrl, 
+  roomName = 'nhom8-room-btxdpmw',
+  callEngine = 'instant',
+  onSwitchEngine,
+  onLeaveCall 
+}) {
   const containerRef = useRef(null);
   const callFrameRef = useRef(null);
   
@@ -26,7 +33,6 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
   const [copied, setCopied] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('Đang kết nối vào phòng...');
-  const [useDirectIframe, setUseDirectIframe] = useState(false);
   const [joinError, setJoinError] = useState(null);
 
   // Bộ đếm thời gian cuộc gọi
@@ -43,14 +49,13 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Cập nhật danh sách người tham gia từ Daily Call Frame
+  // Cập nhật danh sách người tham gia
   const updateParticipantsList = (callFrame) => {
     if (!callFrame) return;
     try {
       const dailyParticipants = callFrame.participants();
       const list = [];
 
-      // Người dùng hiện tại (Local)
       if (dailyParticipants.local) {
         list.push({
           id: 'local',
@@ -63,7 +68,6 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
         });
       }
 
-      // Những người tham gia khác (Remote participants)
       Object.entries(dailyParticipants).forEach(([id, p]) => {
         if (id !== 'local') {
           list.push({
@@ -84,14 +88,16 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
     }
   };
 
-  // Khởi tạo Daily Iframe
+  // Khởi tạo phòng gọi
   useEffect(() => {
-    if (useDirectIframe) {
-      setConnectionStatus('Đang kết nối phòng Daily qua chế độ Trực Tiếp...');
+    // CHẾ ĐỘ 1: WEBRTC INSTANT API (Miễn phí 100%, không cần thẻ Visa/Payment)
+    if (callEngine === 'instant') {
+      setConnectionStatus('Đã kết nối WebRTC Cloud Video thành công!');
+      setJoinError(null);
       setParticipants([
         {
           id: 'local',
-          name: user.displayName || 'Bạn',
+          name: user.displayName || 'Sinh viên Nhóm 8',
           avatar: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.displayName}`,
           isLocal: true,
           audio: true,
@@ -102,12 +108,12 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
       return;
     }
 
+    // CHẾ ĐỘ 2: DAILY.CO API
     if (!containerRef.current) return;
 
     let callFrame = null;
 
     try {
-      // Hủy instance cũ nếu có trước khi tạo mới để tránh xung đột
       const existing = DailyIframe.getCallInstance();
       if (existing) {
         try {
@@ -131,11 +137,11 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
       callFrameRef.current = callFrame;
 
       callFrame.on('joining-meeting', () => {
-        setConnectionStatus('Đang xác thực và vào cuộc họp...');
+        setConnectionStatus('Đang xác thực phòng Daily...');
       });
 
       callFrame.on('joined-meeting', () => {
-        setConnectionStatus('Đã kết nối thành công!');
+        setConnectionStatus('Đã kết nối Daily thành công!');
         updateParticipantsList(callFrame);
       });
 
@@ -157,22 +163,24 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
 
       callFrame.on('error', (e) => {
         console.error('Daily error event:', e);
-        // Tự động chuyển sang chế độ direct iframe nếu SDK gặp lỗi bảo mật COOP
-        setUseDirectIframe(true);
+        if (e?.errorMsg?.includes('account-missing-payment-method') || e?.msg?.includes('payment')) {
+          setJoinError('Daily.co yêu cầu thẻ thanh toán (Visa) để kích hoạt phòng. Bạn hãy bấm nút bên dưới để chuyển sang WebRTC Cloud API gọi ngay 100% miễn phí!');
+        } else {
+          setJoinError(e.errorMsg || 'Lỗi kết nối phòng Daily. Bạn có thể bấm nút dưới để chuyển sang WebRTC Cloud API gọi ngay!');
+        }
       });
 
-      // Join phòng chỉ truyền url và userName chuẩn của Daily
       callFrame.join({
         url: roomUrl,
         userName: user.displayName || 'Sinh viên Nhóm 8'
       }).catch((err) => {
-        console.error('Join room failed, switching to direct iframe mode:', err);
-        setUseDirectIframe(true);
+        console.error('Join room failed:', err);
+        setJoinError('Daily.co báo lỗi tài khoản (cần thẻ thanh toán). Hãy chuyển sang WebRTC Cloud API để gọi ngay!');
       });
 
     } catch (err) {
       console.error('Create callFrame failed:', err);
-      setUseDirectIframe(true);
+      setJoinError(err.message || 'Lỗi khởi tạo Daily.co frame');
     }
 
     return () => {
@@ -185,11 +193,11 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
         }
       }
     };
-  }, [roomUrl, user, useDirectIframe]);
+  }, [callEngine, roomUrl, user, roomName]);
 
   const handleCopyLink = () => {
     const currentOrigin = window.location.origin + window.location.pathname;
-    const inviteUrl = `${currentOrigin}?room=${encodeURIComponent(roomUrl)}`;
+    const inviteUrl = `${currentOrigin}?room=${encodeURIComponent(callEngine === 'daily' ? roomUrl : roomName)}`;
     navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -207,8 +215,9 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
     onLeaveCall();
   };
 
-  // Link trực tiếp nhúng Daily Prebuilt
-  const directEmbedUrl = `${roomUrl}?userName=${encodeURIComponent(user.displayName || 'Nhóm 8')}`;
+  // URL nhúng Jitsi WebRTC Cloud API sạch sẽ, tự động tắt prejoin, đặt tên người dùng
+  const cleanRoomCode = (roomName || 'nhom8-room-btxdpmw').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const webRtcUrl = `https://meet.jit.si/${cleanRoomCode}#userInfo.displayName=${encodeURIComponent(JSON.stringify(user.displayName || 'Nhóm 8'))}&config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
 
   return (
     <div className="glass-card video-room-container">
@@ -226,6 +235,10 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
             <Clock size={12} />
             <span>{formatDuration(callDuration)}</span>
           </div>
+
+          <span className="badge badge-cyan" style={{ fontSize: '0.78rem' }}>
+            {callEngine === 'instant' ? '⚡ WebRTC Cloud API' : '📹 Daily.co API'}
+          </span>
 
           <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>
             {connectionStatus}
@@ -263,15 +276,48 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
         </div>
       </div>
 
+      {/* Hiển thị lỗi nếu Daily đòi thẻ Visa và có nút chuyển ngay sang WebRTC */}
+      {joinError && (
+        <div style={{ 
+          padding: '12px 20px', 
+          background: 'var(--danger-bg)', 
+          borderBottom: '1px solid var(--danger)', 
+          color: '#fca5a5', 
+          fontSize: '0.88rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '10px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={18} />
+            <span>{joinError}</span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {onSwitchEngine && (
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={() => onSwitchEngine('instant')}
+              >
+                <Sparkles size={14} />
+                <span>Chuyển sang WebRTC Cloud để gọi ngay!</span>
+              </button>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={handleLeave}>Quay Lại Sảnh</button>
+          </div>
+        </div>
+      )}
+
       {/* Vùng gọi Video và Danh sách người gọi */}
       <div className="video-layout">
-        {useDirectIframe ? (
+        {callEngine === 'instant' ? (
           <div className="video-frame-wrap" style={{ position: 'relative' }}>
             <iframe
-              src={directEmbedUrl}
-              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              src={webRtcUrl}
+              allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
               style={{ width: '100%', height: '100%', border: 'none', background: '#0a0e17' }}
-              title="Daily.co Video Room"
+              title="WebRTC Video Meeting"
             />
           </div>
         ) : (
@@ -345,7 +391,7 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
             </div>
 
             <div style={{ padding: '12px 14px', borderTop: '1px solid var(--card-border)', fontSize: '0.75rem', color: 'var(--text-sub)', textAlign: 'center' }}>
-              💡 Mở tab ẩn danh hoặc máy 2 vào link này để kết nối cùng lúc!
+              💡 Mở tab ẩn danh hoặc máy 2 cùng vào mã phòng này để kết nối video cùng lúc!
             </div>
           </aside>
         )}
