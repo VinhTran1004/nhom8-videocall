@@ -30,6 +30,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('Đang khởi tạo WebRTC Camera...');
   const [remoteParticipant, setRemoteParticipant] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [micMuted, setMicMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -49,6 +50,14 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Tự động gán stream của người kia vào thẻ video khi remoteStream thay đổi
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch((e) => console.warn('Play remote video:', e));
+    }
+  }, [remoteStream, remoteParticipant]);
+
   // Khởi tạo WebRTC Media và PeerJS connection
   useEffect(() => {
     let localStream = null;
@@ -60,7 +69,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
       .replace(/[^a-z0-9]/g, '_');
 
     const hostPeerId = `nhom8_${cleanRoom}_host`;
-    const guestPeerId = `nhom8_${cleanRoom}_guest_${Math.floor(Math.random() * 10000)}`;
+    const guestPeerId = `nhom8_${cleanRoom}_guest_${Math.floor(Math.random() * 100000)}`;
 
     const startWebRTC = async () => {
       try {
@@ -98,7 +107,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
         peer.on('open', (id) => {
           if (!isSubscribed) return;
           console.log('Peer connected as Host:', id);
-          setConnectionStatus('Bạn đang trong phòng. Đang chờ thành viên khác vào...');
+          setConnectionStatus('Bạn đang trong phòng. Đang chờ người thứ 2 vào...');
         });
 
         // Xử lý khi có người khác gọi đến (Host nhận cuộc gọi từ Guest)
@@ -107,14 +116,11 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
           currentCallRef.current = incomingCall;
           incomingCall.answer(localStream);
 
-          incomingCall.on('stream', (remoteStream) => {
+          incomingCall.on('stream', (incomingStream) => {
             if (!isSubscribed) return;
             console.log('Received remote stream from guest');
-            if (remoteVideoRef.current) {
-              remoteVideoRef.current.srcObject = remoteStream;
-            }
-            // Lấy metadata người gọi nếu có
-            const callerName = incomingCall.metadata?.name || 'Thành viên Nhóm 8';
+            setRemoteStream(incomingStream);
+            const callerName = incomingCall.metadata?.name || 'Huỳnh Minh Trí (Nhóm 8)';
             setRemoteParticipant({
               id: incomingCall.peer,
               name: callerName,
@@ -123,11 +129,12 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
               video: true,
               role: 'Thành viên'
             });
-            setConnectionStatus('Đã kết nối với 1 người tham gia!');
+            setConnectionStatus('Đã kết nối với người thứ 2 thành công!');
           });
 
           incomingCall.on('close', () => {
             setRemoteParticipant(null);
+            setRemoteStream(null);
             setConnectionStatus('Người tham gia đã rời phòng. Đang chờ người khác...');
           });
         });
@@ -156,12 +163,12 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
             guestPeer.on('open', (gId) => {
               if (!isSubscribed) return;
               console.log('Guest peer opened:', gId);
-              setConnectionStatus('Đang gọi đến người chủ phòng...');
+              setConnectionStatus('Đang gọi đến người thứ nhất trong phòng...');
 
               // Gọi trực tiếp đến Host
               const call = guestPeer.call(hostPeerId, localStream, {
                 metadata: {
-                  name: user.displayName || 'Sinh viên Nhóm 8',
+                  name: user.displayName || 'Trần Quang Vinh (Nhóm 8)',
                   email: user.email,
                   avatar: user.photoURL
                 }
@@ -172,13 +179,11 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
               call.on('stream', (hostStream) => {
                 if (!isSubscribed) return;
                 console.log('Received host stream');
-                if (remoteVideoRef.current) {
-                  remoteVideoRef.current.srcObject = hostStream;
-                }
+                setRemoteStream(hostStream);
                 setRemoteParticipant({
                   id: hostPeerId,
-                  name: 'Chủ Phòng (Thành viên Nhóm 8)',
-                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=Host`,
+                  name: 'Trần Quang Vinh (Nhóm 8)',
+                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=Vinh`,
                   audio: true,
                   video: true,
                   role: 'Chủ phòng'
@@ -188,13 +193,14 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
 
               call.on('close', () => {
                 setRemoteParticipant(null);
+                setRemoteStream(null);
                 setConnectionStatus('Chủ phòng đã rời cuộc gọi.');
               });
             });
 
             guestPeer.on('error', (gErr) => {
               console.error('Guest peer error:', gErr);
-              setErrorMsg('Không thể kết nối đến máy chủ WebRTC. Hãy kiểm tra lại kết nối mạng!');
+              setErrorMsg('Lỗi kết nối WebRTC signaling. Hãy thử tải lại trang!');
             });
 
           } else {
@@ -205,7 +211,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
 
       } catch (mediaErr) {
         console.error('Media devices error:', mediaErr);
-        setErrorMsg('Không thể mở Camera/Micro. Vui lòng cấp quyền Camera trong trình duyệt!');
+        setErrorMsg('Không thể mở Camera/Micro. Vui lòng bấm Cho Phép Camera trong trình duyệt!');
       }
     };
 
@@ -258,7 +264,6 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
           localVideoRef.current.srcObject = screenStream;
         }
 
-        // Thay track video trong peer call nếu đang có cuộc gọi
         if (currentCallRef.current?.peerConnection) {
           const sender = currentCallRef.current.peerConnection
             .getSenders()
@@ -531,7 +536,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
                 <div>
                   <h4 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: '700' }}>Đang đợi thành viên khác tham gia...</h4>
                   <p style={{ fontSize: '0.85rem', marginTop: '4px', maxWidth: '320px' }}>
-                    Mở thêm 1 tab Ẩn danh (hoặc điện thoại), đăng nhập tài khoản thứ 2 và vào cùng mã phòng này!
+                    Mở thêm 1 tab Ẩn danh (hoặc điện thoại), đăng nhập tài khoản thứ 2 và vào cùng phòng này!
                   </p>
                 </div>
                 <button className="btn btn-secondary btn-sm" onClick={handleCopyLink}>
@@ -584,7 +589,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
             </button>
 
             <button 
-              className="btn btn-danger btn-sm"
+              className="btn btn-danger btn-sm" 
               onClick={handleLeave}
               style={{ borderRadius: 'var(--radius-full)', padding: '8px 18px' }}
               title="Rời cuộc gọi"
