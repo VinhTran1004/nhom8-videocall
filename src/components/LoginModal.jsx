@@ -21,8 +21,10 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }) {
       onClose();
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/unauthorized-domain') {
-        setError('Tên miền này chưa được thêm vào Firebase Authorized Domains. Bạn có thể dùng chế độ "Đăng Nhập Nhanh / Chấm Điểm" bên dưới để test ngay lập tức!');
+      if (err.code === 'auth/api-key-not-valid' || err.message?.includes('api-key-not-valid')) {
+        setError('Dự án chưa gắn Firebase API Key thật từ console.firebase.google.com. Bạn hãy bấm vào nút "👨‍💻 Trần Quang Vinh" hoặc "👨‍💻 Huỳnh Minh Trí" ở ngay bên dưới để vào phòng ngay!');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('Tên miền này chưa được thêm vào Firebase Authorized Domains. Bạn hãy dùng các nút chọn nhanh bên dưới để đăng nhập tức thì!');
       } else if (err.code === 'auth/popup-closed-by-user') {
         setError('Cửa sổ đăng nhập đã bị đóng.');
       } else {
