@@ -13,7 +13,8 @@ import {
   ChevronRight, 
   ChevronLeft,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 
 export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
@@ -25,6 +26,7 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
   const [copied, setCopied] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('Đang kết nối vào phòng...');
+  const [useDirectIframe, setUseDirectIframe] = useState(false);
   const [joinError, setJoinError] = useState(null);
 
   // Bộ đếm thời gian cuộc gọi
@@ -84,11 +86,37 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
 
   // Khởi tạo Daily Iframe
   useEffect(() => {
+    if (useDirectIframe) {
+      setConnectionStatus('Đang kết nối phòng Daily qua chế độ Trực Tiếp...');
+      setParticipants([
+        {
+          id: 'local',
+          name: user.displayName || 'Bạn',
+          avatar: user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.displayName}`,
+          isLocal: true,
+          audio: true,
+          video: true,
+          role: 'Bạn'
+        }
+      ]);
+      return;
+    }
+
     if (!containerRef.current) return;
 
     let callFrame = null;
 
     try {
+      // Hủy instance cũ nếu có trước khi tạo mới để tránh xung đột
+      const existing = DailyIframe.getCallInstance();
+      if (existing) {
+        try {
+          existing.destroy();
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+
       callFrame = DailyIframe.createFrame(containerRef.current, {
         iframeStyle: {
           width: '100%',
@@ -96,31 +124,30 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
           border: 'none',
           backgroundColor: '#0a0e17'
         },
-        showLeaveButton: false, // Quản lý nút rời phòng riêng
+        showLeaveButton: false,
         showFullscreenButton: true,
       });
 
       callFrameRef.current = callFrame;
 
-      // Đăng ký các sự kiện theo dõi danh sách người gọi
       callFrame.on('joining-meeting', () => {
         setConnectionStatus('Đang xác thực và vào cuộc họp...');
       });
 
-      callFrame.on('joined-meeting', (event) => {
+      callFrame.on('joined-meeting', () => {
         setConnectionStatus('Đã kết nối thành công!');
         updateParticipantsList(callFrame);
       });
 
-      callFrame.on('participant-joined', (event) => {
+      callFrame.on('participant-joined', () => {
         updateParticipantsList(callFrame);
       });
 
-      callFrame.on('participant-updated', (event) => {
+      callFrame.on('participant-updated', () => {
         updateParticipantsList(callFrame);
       });
 
-      callFrame.on('participant-left', (event) => {
+      callFrame.on('participant-left', () => {
         updateParticipantsList(callFrame);
       });
 
@@ -130,26 +157,22 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
 
       callFrame.on('error', (e) => {
         console.error('Daily error event:', e);
-        setJoinError(e.errorMsg || 'Không thể kết nối đến phòng Daily này. Hãy kiểm tra lại Room URL!');
+        // Tự động chuyển sang chế độ direct iframe nếu SDK gặp lỗi bảo mật COOP
+        setUseDirectIframe(true);
       });
 
-      // Bắt đầu join phòng với Tên đã nhận từ đăng nhập mạng xã hội
+      // Join phòng chỉ truyền url và userName chuẩn của Daily
       callFrame.join({
         url: roomUrl,
-        userName: user.displayName || 'Sinh viên Nhóm 8',
-        userData: {
-          avatar: user.photoURL,
-          email: user.email,
-          provider: user.provider
-        }
+        userName: user.displayName || 'Sinh viên Nhóm 8'
       }).catch((err) => {
-        console.error('Join room failed:', err);
-        setJoinError('Lỗi kết nối phòng Daily. Vui lòng kiểm tra URL phòng trong phần Cài Đặt hoặc tạo phòng mới tại dashboard.daily.co');
+        console.error('Join room failed, switching to direct iframe mode:', err);
+        setUseDirectIframe(true);
       });
 
     } catch (err) {
       console.error('Create callFrame failed:', err);
-      setJoinError(err.message || 'Lỗi khởi tạo Daily.co frame');
+      setUseDirectIframe(true);
     }
 
     return () => {
@@ -162,7 +185,7 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
         }
       }
     };
-  }, [roomUrl, user]);
+  }, [roomUrl, user, useDirectIframe]);
 
   const handleCopyLink = () => {
     const currentOrigin = window.location.origin + window.location.pathname;
@@ -176,12 +199,16 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
     if (callFrameRef.current) {
       try {
         callFrameRef.current.leave();
+        callFrameRef.current.destroy();
       } catch (e) {
         console.warn(e);
       }
     }
     onLeaveCall();
   };
+
+  // Link trực tiếp nhúng Daily Prebuilt
+  const directEmbedUrl = `${roomUrl}?userName=${encodeURIComponent(user.displayName || 'Nhóm 8')}`;
 
   return (
     <div className="glass-card video-room-container">
@@ -236,31 +263,22 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
         </div>
       </div>
 
-      {joinError && (
-        <div style={{ 
-          padding: '12px 20px', 
-          background: 'var(--danger-bg)', 
-          borderBottom: '1px solid var(--danger)', 
-          color: '#fca5a5', 
-          fontSize: '0.88rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={18} />
-            <span>{joinError}</span>
-          </div>
-          <button className="btn btn-secondary btn-sm" onClick={handleLeave}>Quay Lại Sảnh</button>
-        </div>
-      )}
-
       {/* Vùng gọi Video và Danh sách người gọi */}
       <div className="video-layout">
-        {/* Khung iframe Daily.co */}
-        <div className="video-frame-wrap" ref={containerRef} />
+        {useDirectIframe ? (
+          <div className="video-frame-wrap" style={{ position: 'relative' }}>
+            <iframe
+              src={directEmbedUrl}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              style={{ width: '100%', height: '100%', border: 'none', background: '#0a0e17' }}
+              title="Daily.co Video Room"
+            />
+          </div>
+        ) : (
+          <div className="video-frame-wrap" ref={containerRef} />
+        )}
 
-        {/* DANH SÁCH NGƯỜI GỌI THEO TÊN ĐÃ NHẬN KHI ĐĂNG NHẬP (Theo đúng yêu cầu đề bài) */}
+        {/* DANH SÁCH NGƯỜI GỌI THEO TÊN ĐÃ NHẬN KHI ĐĂNG NHẬP */}
         {sidebarOpen && (
           <aside className="participants-sidebar">
             <div className="participants-header">
@@ -274,66 +292,60 @@ export default function VideoRoom({ user, roomUrl, onLeaveCall }) {
             </div>
 
             <div style={{ padding: '8px 14px', background: 'rgba(99, 102, 241, 0.08)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Đồng bộ tên từ tài khoản Google/Mạng xã hội đã đăng nhập
+              Đồng bộ tên: <strong>{user.displayName}</strong>
             </div>
 
             <div className="participants-list">
-              {participants.length === 0 ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-sub)', fontSize: '0.85rem' }}>
-                  Đang đồng bộ người tham gia...
-                </div>
-              ) : (
-                participants.map((p) => (
-                  <div key={p.id} className="participant-item">
-                    <div className="participant-user">
-                      <div className="participant-avatar-wrap">
-                        <img 
-                          src={p.avatar} 
-                          alt={p.name} 
-                          className="participant-avatar"
-                          onError={(e) => {
-                            e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${p.name}`;
-                          }}
-                        />
-                        <span className="participant-online-dot" />
-                      </div>
-                      
-                      <div className="participant-name-wrap">
-                        <span className="participant-name">
-                          {p.name}
-                          {p.isLocal && (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--secondary)', fontWeight: '600' }}>
-                              (Bạn)
-                            </span>
-                          )}
-                        </span>
-                        <span className="participant-role">
-                          {p.isLocal ? 'Tài khoản hiện tại' : 'Đang kết nối'}
-                        </span>
-                      </div>
+              {participants.map((p) => (
+                <div key={p.id} className="participant-item">
+                  <div className="participant-user">
+                    <div className="participant-avatar-wrap">
+                      <img 
+                        src={p.avatar} 
+                        alt={p.name} 
+                        className="participant-avatar"
+                        onError={(e) => {
+                          e.target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${p.name}`;
+                        }}
+                      />
+                      <span className="participant-online-dot" />
                     </div>
-
-                    <div className="participant-controls-status">
-                      <div 
-                        className={`status-icon ${p.audio ? 'on' : 'off'}`}
-                        title={p.audio ? 'Micro đang bật' : 'Micro đang tắt'}
-                      >
-                        {p.audio ? <Mic size={14} /> : <MicOff size={14} />}
-                      </div>
-                      <div 
-                        className={`status-icon ${p.video ? 'on' : 'off'}`}
-                        title={p.video ? 'Camera đang bật' : 'Camera đang tắt'}
-                      >
-                        {p.video ? <Video size={14} /> : <VideoOff size={14} />}
-                      </div>
+                    
+                    <div className="participant-name-wrap">
+                      <span className="participant-name">
+                        {p.name}
+                        {p.isLocal && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--secondary)', fontWeight: '600' }}>
+                            (Bạn)
+                          </span>
+                        )}
+                      </span>
+                      <span className="participant-role">
+                        {p.isLocal ? 'Tài khoản hiện tại' : 'Đang kết nối'}
+                      </span>
                     </div>
                   </div>
-                ))
-              )}
+
+                  <div className="participant-controls-status">
+                    <div 
+                      className={`status-icon ${p.audio ? 'on' : 'off'}`}
+                      title={p.audio ? 'Micro đang bật' : 'Micro đang tắt'}
+                    >
+                      {p.audio ? <Mic size={14} /> : <MicOff size={14} />}
+                    </div>
+                    <div 
+                      className={`status-icon ${p.video ? 'on' : 'off'}`}
+                      title={p.video ? 'Camera đang bật' : 'Camera đang tắt'}
+                    >
+                      {p.video ? <Video size={14} /> : <VideoOff size={14} />}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div style={{ padding: '12px 14px', borderTop: '1px solid var(--card-border)', fontSize: '0.75rem', color: 'var(--text-sub)', textAlign: 'center' }}>
-              💡 Mở thêm 1 tab ẩn danh hoặc máy khác và đăng nhập để thấy thêm người trong danh sách!
+              💡 Mở tab ẩn danh hoặc máy 2 vào link này để kết nối cùng lúc!
             </div>
           </aside>
         )}

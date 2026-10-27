@@ -1,5 +1,5 @@
 // Quản lý cấu hình phòng Daily.co
-const DEFAULT_ROOM_URL = "https://nhom8.daily.co/classroom";
+const DEFAULT_ROOM_URL = "https://vinhtran.daily.co/nhom8";
 
 export const getSavedDailyRoom = () => {
   // Kiểm tra query parameter từ URL trước (nếu người dùng bấm vào link mời)
@@ -7,11 +7,14 @@ export const getSavedDailyRoom = () => {
   const roomParam = urlParams.get('room');
   if (roomParam) {
     if (roomParam.startsWith('http')) return roomParam;
-    return `https://nhom8.daily.co/${roomParam}`;
+    return `https://vinhtran.daily.co/${roomParam}`;
   }
 
   const saved = localStorage.getItem('nhom8_daily_room_url');
-  return saved || DEFAULT_ROOM_URL;
+  if (!saved || saved.includes('nhom8.daily.co')) {
+    return DEFAULT_ROOM_URL;
+  }
+  return saved;
 };
 
 export const saveDailyRoom = (url) => {

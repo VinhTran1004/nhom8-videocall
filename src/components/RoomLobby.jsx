@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
-import { 
-  Video, 
-  LogIn, 
-  Share2, 
-  Check, 
-  Copy, 
-  Sparkles, 
-  Mic, 
-  Camera, 
-  Users, 
-  ShieldCheck, 
-  ExternalLink 
+import {
+  Video,
+  LogIn,
+  Share2,
+  Check,
+  Copy,
+  Sparkles,
+  Mic,
+  Camera,
+  Users,
+  ShieldCheck,
+  ExternalLink
 } from 'lucide-react';
 
-export default function RoomLobby({ 
-  user, 
-  onOpenLogin, 
-  roomUrl, 
-  setRoomUrl, 
-  onJoinCall 
+export default function RoomLobby({
+  user,
+  onOpenLogin,
+  roomUrl,
+  setRoomUrl,
+  onJoinCall
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -73,11 +73,11 @@ export default function RoomLobby({
 
             <div className="input-group">
               <label className="input-label">URL Phòng Gọi Video (Daily.co):</label>
-              <input 
-                type="text" 
-                className="custom-input" 
-                value={roomUrl} 
-                onChange={(e) => setRoomUrl(e.target.value)} 
+              <input
+                type="text"
+                className="custom-input"
+                value={roomUrl}
+                onChange={(e) => setRoomUrl(e.target.value)}
                 placeholder="https://your-domain.daily.co/your-room"
               />
               <span style={{ fontSize: '0.78rem', color: 'var(--text-sub)' }}>
@@ -88,15 +88,15 @@ export default function RoomLobby({
             {/* Presets phòng mẫu */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Phòng mẫu:</span>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => setRoomUrl('https://nhom8.daily.co/classroom')}
               >
                 🏫 Phòng Học Nhóm 8
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => setRoomUrl('https://nhom8.daily.co/demo-meeting')}
               >
@@ -106,8 +106,8 @@ export default function RoomLobby({
 
             {/* Nút Join & Nút Mời */}
             <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginTop: '10px' }}>
-              <button 
-                className="btn btn-primary btn-lg" 
+              <button
+                className="btn btn-primary btn-lg"
                 onClick={onJoinCall}
                 style={{ flex: 1, minWidth: '200px' }}
               >
@@ -115,8 +115,8 @@ export default function RoomLobby({
                 <span>Tham Gia Cuộc Gọi Ngay</span>
               </button>
 
-              <button 
-                className="btn btn-secondary btn-lg" 
+              <button
+                className="btn btn-secondary btn-lg"
                 onClick={handleCopyInviteLink}
                 title="Sao chép link kèm mã phòng này để gửi cho bạn bè/giảng viên"
               >
@@ -137,52 +137,52 @@ export default function RoomLobby({
 
         <div style={{ fontSize: '0.86rem', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <span style={{ 
-              width: '24px', 
-              height: '24px', 
-              borderRadius: '50%', 
-              background: 'rgba(99, 102, 241, 0.2)', 
-              color: 'var(--primary)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontWeight: '700', 
+            <span style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              background: 'rgba(99, 102, 241, 0.2)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: '700',
               fontSize: '0.8rem',
-              flexShrink: 0 
+              flexShrink: 0
             }}>1</span>
             <span>Mở trang web này trên <strong>Tab 1</strong> (hoặc Máy 1) & Đăng nhập tài khoản 1 (ví dụ: Google / Trần Quang Vinh).</span>
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
-            <span style={{ 
-              width: '24px', 
-              height: '24px', 
-              borderRadius: '50%', 
-              background: 'rgba(6, 182, 212, 0.2)', 
-              color: 'var(--secondary)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontWeight: '700', 
+            <span style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              background: 'rgba(6, 182, 212, 0.2)',
+              color: 'var(--secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: '700',
               fontSize: '0.8rem',
-              flexShrink: 0 
+              flexShrink: 0
             }}>2</span>
             <span>Mở cửa sổ <strong>Ẩn danh (Incognito)</strong> hoặc Máy 2 & Đăng nhập tài khoản 2 (ví dụ: Huỳnh Minh Trí hoặc Giảng viên).</span>
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
-            <span style={{ 
-              width: '24px', 
-              height: '24px', 
-              borderRadius: '50%', 
-              background: 'rgba(16, 185, 129, 0.2)', 
-              color: 'var(--success)', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              fontWeight: '700', 
+            <span style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              background: 'rgba(16, 185, 129, 0.2)',
+              color: 'var(--success)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: '700',
               fontSize: '0.8rem',
-              flexShrink: 0 
+              flexShrink: 0
             }}>3</span>
             <span>Cả hai cùng bấm <strong>Tham Gia Cuộc Gọi</strong> vào cùng một phòng. Cả hai sẽ thấy camera, nghe mic và thấy tên nhau trong danh sách người gọi!</span>
           </div>

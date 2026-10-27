@@ -67,7 +67,7 @@ export default function App() {
   return (
     <div className="app-container">
       {/* Navigation Bar */}
-      <Navbar 
+      <Navbar
         user={user}
         onOpenLogin={() => setIsLoginModalOpen(true)}
         onLogout={handleLogout}
@@ -85,13 +85,13 @@ export default function App() {
 
         {/* Nội dung chính: Sảnh chờ hoặc Phòng gọi Video */}
         {isInCall ? (
-          <VideoRoom 
-            user={user} 
-            roomUrl={roomUrl} 
-            onLeaveCall={handleLeaveCall} 
+          <VideoRoom
+            user={user}
+            roomUrl={roomUrl}
+            onLeaveCall={handleLeaveCall}
           />
         ) : (
-          <RoomLobby 
+          <RoomLobby
             user={user}
             onOpenLogin={() => setIsLoginModalOpen(true)}
             roomUrl={roomUrl}
@@ -112,21 +112,21 @@ export default function App() {
       )}
 
       {/* Modals */}
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
       />
 
-      <ConfigModal 
-        isOpen={isConfigModalOpen} 
-        onClose={() => setIsConfigModalOpen(false)} 
+      <ConfigModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
         onRoomUpdated={(newUrl) => setRoomUrl(newUrl)}
       />
 
-      <GuideModal 
-        isOpen={isGuideModalOpen} 
-        onClose={() => setIsGuideModalOpen(false)} 
+      <GuideModal
+        isOpen={isGuideModalOpen}
+        onClose={() => setIsGuideModalOpen(false)}
       />
     </div>
   );
