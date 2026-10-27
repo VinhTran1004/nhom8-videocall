@@ -12,7 +12,6 @@ import {
   Clock, 
   ChevronRight, 
   ChevronLeft,
-  ShieldCheck,
   Monitor,
   Sparkles,
   AlertCircle
@@ -23,7 +22,8 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
   const remoteVideoRef = useRef(null);
   const peerRef = useRef(null);
   const localStreamRef = useRef(null);
-  const currentCallRef = useRef(null);
+  const activeCallRef = useRef(null);
+  const wsRef = useRef(null);
 
   const [callDuration, setCallDuration] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -50,31 +50,64 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Tự động gán stream của người kia vào thẻ video khi remoteStream thay đổi
+  // Tự động gán stream của người kia vào thẻ video khi remoteStream sẵn sàng
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch((e) => console.warn('Play remote video:', e));
+      remoteVideoRef.current.play().catch((e) => console.warn('Play remote video error:', e));
     }
   }, [remoteStream, remoteParticipant]);
 
-  // Khởi tạo WebRTC Media và PeerJS connection
+  // Khởi tạo WebRTC Media và Signaling qua WebSocket
   useEffect(() => {
     let localStream = null;
     let peer = null;
+    let ws = null;
+    let announceInterval = null;
     let isSubscribed = true;
 
     const cleanRoom = (roomName || 'nhom8-room-btxdpmw')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '_');
 
-    const hostPeerId = `nhom8_${cleanRoom}_host`;
-    const guestPeerId = `nhom8_${cleanRoom}_guest_${Math.floor(Math.random() * 100000)}`;
+    // Tạo ID ngẫu nhiên duy nhất cho mỗi phiên gọi để không bao giờ bị trùng (tránh lỗi ID unavailable)
+    const myPeerId = `nhom8_${cleanRoom}_${Math.random().toString(36).substring(2, 9)}`;
+    const signalTopic = `nhom8_signal_${cleanRoom}`;
+
+    const setupCallHandlers = (call, peerName) => {
+      activeCallRef.current = call;
+
+      call.on('stream', (incomingStream) => {
+        if (!isSubscribed) return;
+        console.log('Received remote media stream from:', peerName);
+        setRemoteStream(incomingStream);
+        setRemoteParticipant({
+          id: call.peer,
+          name: peerName || call.metadata?.name || 'Thành viên Nhóm 8',
+          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${peerName || 'Member'}`,
+          audio: true,
+          video: true,
+          role: 'Thành viên'
+        });
+        setConnectionStatus('Đã kết nối với người thứ 2 thành công!');
+      });
+
+      call.on('close', () => {
+        if (!isSubscribed) return;
+        setRemoteParticipant(null);
+        setRemoteStream(null);
+        setConnectionStatus('Người tham gia đã rời cuộc gọi.');
+      });
+
+      call.on('error', (err) => {
+        console.warn('Call error:', err);
+      });
+    };
 
     const startWebRTC = async () => {
       try {
         setConnectionStatus('Đang xin quyền mở Camera & Micro...');
-        // 1. Mở Camera & Mic của người dùng
+        // 1. Mở Camera & Mic cục bộ
         localStream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: true
@@ -87,16 +120,17 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
           localVideoRef.current.srcObject = localStream;
         }
 
-        setConnectionStatus('Đang kết nối vào phòng gọi WebRTC...');
+        setConnectionStatus('Đang kết nối vào máy chủ WebRTC...');
 
-        // 2. Thử đóng vai trò Host trước
-        peer = new Peer(hostPeerId, {
+        // 2. Khởi tạo PeerJS với ID ngẫu nhiên đảm bảo 100% kết nối thành công
+        peer = new Peer(myPeerId, {
           host: '0.peerjs.com',
           port: 443,
           secure: true,
           config: {
             iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:global.stun.twilio.com:3478' }
             ]
           }
@@ -106,107 +140,77 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
 
         peer.on('open', (id) => {
           if (!isSubscribed) return;
-          console.log('Peer connected as Host:', id);
-          setConnectionStatus('Bạn đang trong phòng. Đang chờ người thứ 2 vào...');
-        });
+          console.log('Peer connected with unique ID:', id);
+          setConnectionStatus('Đang trong phòng. Đang tìm người thứ 2...');
 
-        // Xử lý khi có người khác gọi đến (Host nhận cuộc gọi từ Guest)
-        peer.on('call', (incomingCall) => {
-          console.log('Incoming call from guest');
-          currentCallRef.current = incomingCall;
-          incomingCall.answer(localStream);
+          // 3. Kết nối kênh WebSocket Signaling tự động phát hiện người vào phòng
+          try {
+            ws = new WebSocket(`wss://ntfy.sh/${signalTopic}/ws`);
+            wsRef.current = ws;
 
-          incomingCall.on('stream', (incomingStream) => {
-            if (!isSubscribed) return;
-            console.log('Received remote stream from guest');
-            setRemoteStream(incomingStream);
-            const callerName = incomingCall.metadata?.name || 'Huỳnh Minh Trí (Nhóm 8)';
-            setRemoteParticipant({
-              id: incomingCall.peer,
-              name: callerName,
-              avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${callerName}`,
-              audio: true,
-              video: true,
-              role: 'Thành viên'
-            });
-            setConnectionStatus('Đã kết nối với người thứ 2 thành công!');
-          });
+            ws.onopen = () => {
+              console.log('Signaling WebSocket connected to:', signalTopic);
+              // Phát thông báo mình đã vào phòng
+              broadcastPresence('join');
+            };
 
-          incomingCall.on('close', () => {
-            setRemoteParticipant(null);
-            setRemoteStream(null);
-            setConnectionStatus('Người tham gia đã rời phòng. Đang chờ người khác...');
-          });
-        });
-
-        // Nếu ID Host đã có người chiếm (nghĩa là đã có người vào phòng trước đó):
-        peer.on('error', async (err) => {
-          if (err.type === 'unavailable-id') {
-            console.log('Host ID taken, joining as Guest and calling Host...');
-            peer.destroy();
-
-            // Khởi tạo Peer với vai trò Guest
-            const guestPeer = new Peer(guestPeerId, {
-              host: '0.peerjs.com',
-              port: 443,
-              secure: true,
-              config: {
-                iceServers: [
-                  { urls: 'stun:stun.l.google.com:19302' },
-                  { urls: 'stun:global.stun.twilio.com:3478' }
-                ]
-              }
-            });
-
-            peerRef.current = guestPeer;
-
-            guestPeer.on('open', (gId) => {
+            ws.onmessage = (event) => {
               if (!isSubscribed) return;
-              console.log('Guest peer opened:', gId);
-              setConnectionStatus('Đang gọi đến người thứ nhất trong phòng...');
+              try {
+                const message = JSON.parse(event.data);
+                if (message.event === 'message' && message.message) {
+                  const data = JSON.parse(message.message);
+                  
+                  // Bỏ qua tin nhắn từ chính mình
+                  if (data.peerId === myPeerId) return;
 
-              // Gọi trực tiếp đến Host
-              const call = guestPeer.call(hostPeerId, localStream, {
-                metadata: {
-                  name: user.displayName || 'Trần Quang Vinh (Nhóm 8)',
-                  email: user.email,
-                  avatar: user.photoURL
+                  if (data.type === 'join' || data.type === 'announce') {
+                    console.log('Discovered peer in room:', data.peerId, data.name);
+                    
+                    // Thỏa thuận: Peer nào có chuỗi ID nhỏ hơn sẽ chủ động thực hiện cuộc gọi
+                    if (myPeerId < data.peerId && !activeCallRef.current) {
+                      console.log('Initiating call to peer:', data.peerId);
+                      const call = peer.call(data.peerId, localStream, {
+                        metadata: {
+                          name: user.displayName || 'Thành viên Nhóm 8',
+                          avatar: user.photoURL
+                        }
+                      });
+                      setupCallHandlers(call, data.name);
+                    }
+                  } else if (data.type === 'leave') {
+                    if (remoteParticipant?.id === data.peerId) {
+                      setRemoteParticipant(null);
+                      setRemoteStream(null);
+                      setConnectionStatus('Thành viên đã rời phòng.');
+                    }
+                  }
                 }
-              });
-
-              currentCallRef.current = call;
-
-              call.on('stream', (hostStream) => {
-                if (!isSubscribed) return;
-                console.log('Received host stream');
-                setRemoteStream(hostStream);
-                setRemoteParticipant({
-                  id: hostPeerId,
-                  name: 'Trần Quang Vinh (Nhóm 8)',
-                  avatar: `https://api.dicebear.com/7.x/initials/svg?seed=Vinh`,
-                  audio: true,
-                  video: true,
-                  role: 'Chủ phòng'
-                });
-                setConnectionStatus('Đã kết nối với người trong phòng thành công!');
-              });
-
-              call.on('close', () => {
-                setRemoteParticipant(null);
-                setRemoteStream(null);
-                setConnectionStatus('Chủ phòng đã rời cuộc gọi.');
-              });
-            });
-
-            guestPeer.on('error', (gErr) => {
-              console.error('Guest peer error:', gErr);
-              setErrorMsg('Lỗi kết nối WebRTC signaling. Hãy thử tải lại trang!');
-            });
-
-          } else {
-            console.error('Peer error:', err);
-            setErrorMsg(err.message || 'Lỗi kết nối WebRTC');
+              } catch (e) {
+                // Ignore non-json signaling frames
+              }
+            };
+          } catch (wsErr) {
+            console.warn('Signaling WebSocket error:', wsErr);
           }
+
+          // Định kỳ thông báo sự hiện diện mỗi 3 giây để người mới vào bắt được ngay
+          announceInterval = setInterval(() => {
+            broadcastPresence('announce');
+          }, 3000);
+        });
+
+        // 4. Lắng nghe cuộc gọi đến
+        peer.on('call', (incomingCall) => {
+          console.log('Received incoming call from peer:', incomingCall.peer);
+          incomingCall.answer(localStream);
+          const callerName = incomingCall.metadata?.name || 'Thành viên Nhóm 8';
+          setupCallHandlers(incomingCall, callerName);
+        });
+
+        peer.on('error', (err) => {
+          console.error('Peer error:', err);
+          setErrorMsg(err.message || 'Lỗi kết nối WebRTC');
         });
 
       } catch (mediaErr) {
@@ -215,18 +219,38 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
       }
     };
 
+    const broadcastPresence = (type) => {
+      fetch(`https://ntfy.sh/${signalTopic}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: type,
+          peerId: myPeerId,
+          name: user.displayName || 'Thành viên Nhóm 8',
+          avatar: user.photoURL,
+          time: Date.now()
+        })
+      }).catch((e) => console.warn('Broadcast presence error:', e));
+    };
+
     startWebRTC();
 
     return () => {
       isSubscribed = false;
+      if (announceInterval) clearInterval(announceInterval);
+      broadcastPresence('leave');
+
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch (e) {}
+      }
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
-      if (currentCallRef.current) {
-        currentCallRef.current.close();
+      if (activeCallRef.current) {
+        try { activeCallRef.current.close(); } catch (e) {}
       }
       if (peerRef.current) {
-        peerRef.current.destroy();
+        try { peerRef.current.destroy(); } catch (e) {}
       }
     };
   }, [roomName, user]);
@@ -264,8 +288,8 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
           localVideoRef.current.srcObject = screenStream;
         }
 
-        if (currentCallRef.current?.peerConnection) {
-          const sender = currentCallRef.current.peerConnection
+        if (activeCallRef.current?.peerConnection) {
+          const sender = activeCallRef.current.peerConnection
             .getSenders()
             .find((s) => s.track?.kind === 'video');
           if (sender) {
@@ -290,8 +314,8 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
     if (localStreamRef.current && localVideoRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
       const originalVideoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (currentCallRef.current?.peerConnection && originalVideoTrack) {
-        const sender = currentCallRef.current.peerConnection
+      if (activeCallRef.current?.peerConnection && originalVideoTrack) {
+        const sender = activeCallRef.current.peerConnection
           .getSenders()
           .find((s) => s.track?.kind === 'video');
         if (sender) {
@@ -314,11 +338,11 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
     }
-    if (currentCallRef.current) {
-      currentCallRef.current.close();
+    if (activeCallRef.current) {
+      try { activeCallRef.current.close(); } catch (e) {}
     }
     if (peerRef.current) {
-      peerRef.current.destroy();
+      try { peerRef.current.destroy(); } catch (e) {}
     }
     onLeaveCall();
   };
@@ -358,7 +382,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
           </div>
 
           <span className="badge badge-cyan" style={{ fontSize: '0.78rem' }}>
-            ⚡ Native WebRTC P2P
+            ⚡ WebRTC P2P Realtime
           </span>
 
           <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>
@@ -536,7 +560,7 @@ export default function NativeVideoRoom({ user, roomName = 'nhom8-room-btxdpmw',
                 <div>
                   <h4 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: '700' }}>Đang đợi thành viên khác tham gia...</h4>
                   <p style={{ fontSize: '0.85rem', marginTop: '4px', maxWidth: '320px' }}>
-                    Mở thêm 1 tab Ẩn danh (hoặc điện thoại), đăng nhập tài khoản thứ 2 và vào cùng phòng này!
+                    Mở thêm 1 tab Ẩn danh (hoặc điện thoại), đăng nhập tài khoản thứ 2 và vào cùng mã phòng này!
                   </p>
                 </div>
                 <button className="btn btn-secondary btn-sm" onClick={handleCopyLink}>
