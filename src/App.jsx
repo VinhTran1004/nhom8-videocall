@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import GroupBanner from './components/GroupBanner';
 import RoomLobby from './components/RoomLobby';
 import VideoRoom from './components/VideoRoom';
+import NativeVideoRoom from './components/NativeVideoRoom';
 import LoginModal from './components/LoginModal';
 import ConfigModal from './components/ConfigModal';
 import GuideModal from './components/GuideModal';
@@ -94,14 +95,22 @@ export default function App() {
 
         {/* Nội dung chính: Sảnh chờ hoặc Phòng gọi Video */}
         {isInCall ? (
-          <VideoRoom
-            user={user}
-            roomUrl={roomUrl}
-            roomName={roomName}
-            callEngine={callEngine}
-            onSwitchEngine={handleSwitchEngine}
-            onLeaveCall={handleLeaveCall}
-          />
+          callEngine === 'instant' ? (
+            <NativeVideoRoom
+              user={user}
+              roomName={roomName}
+              onLeaveCall={handleLeaveCall}
+            />
+          ) : (
+            <VideoRoom
+              user={user}
+              roomUrl={roomUrl}
+              roomName={roomName}
+              callEngine={callEngine}
+              onSwitchEngine={handleSwitchEngine}
+              onLeaveCall={handleLeaveCall}
+            />
+          )
         ) : (
           <RoomLobby
             user={user}

@@ -15,6 +15,7 @@
     "@daily-co/daily-js": "^0.94.0",
     "firebase": "^13.1.0",
     "lucide-react": "^1.61.0",
+    "peerjs": "^1.5.5",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
